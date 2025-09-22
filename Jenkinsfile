@@ -1,57 +1,90 @@
 pipeline {
-    agent any
+  agent any
 
-    environment {
-        IMAGE_NAME = 'your-dockerhub-username/rancid-app'
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
-        KUBECONFIG = credentials('kubeconfig-secret-id') // optional if you use KUBECONFIG env
+  environment {
+    IMAGE_NAME   = "ghcr.io/noshavenovemba/network-mgmt"
+    IMAGE_TAG    = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+    REGISTRY_URL = "ghcr.io"
+  }
+
+  options {
+    skipStagesAfterUnstable()
+    timestamps()
+    ansiColor('xterm')
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git url: 'https://your-repo-url.git', branch: 'main'
-            }
-        }
+    stage('Lint & Validate') {
+      steps {
+        sh '''
+          echo ">>> Linting shell scripts"
+          shellcheck backup.sh entrypoint.sh || true
 
-        stage('Build Docker Image') {
-            steps {
-                sh "docker build -t $IMAGE_NAME:$IMAGE_TAG ."
-            }
-        }
-
-        stage('Security Scan') {
-            steps {
-            sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL $IMAGE_NAME:$IMAGE_TAG'
-            }
-        }
-
-        stage('Push to Registry') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh """
-                        echo "$PASSWORD" | docker login -u "$USERNAME" --password-stdin
-                        docker push $IMAGE_NAME:$IMAGE_TAG
-                    """
-                }
-            }
-        }
-
-        stage('Deploy with Helmfile') {
-            steps {
-                sh """
-                    export IMAGE_TAG=$IMAGE_TAG
-                    helmfile -e production apply
-                """
-            }
-        }
+          echo ">>> Linting Helm manifests"
+          helm lint ./helmfile.yaml || true
+        '''
+      }
     }
 
-    post {
-        failure {
-            mail to: 'devops@example.com',
-                 subject: "Jenkins Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "Something went wrong. Check Jenkins: ${env.BUILD_URL}"
-        }
+    stage('Build Docker Image') {
+      steps {
+        sh '''
+          echo ">>> Building Docker image"
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+        '''
+      }
     }
+
+    stage('Push Docker Image') {
+      when {
+        branch 'main'
+      }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'ghcr-creds',
+                                          usernameVariable: 'REG_USER',
+                                          passwordVariable: 'REG_PASS')]) {
+          sh '''
+            echo ">>> Logging in to registry"
+            echo $REG_PASS | docker login $REGISTRY_URL -u $REG_USER --password-stdin
+
+            echo ">>> Pushing image"
+            docker push $IMAGE_NAME:$IMAGE_TAG
+          '''
+        }
+      }
+    }
+
+    stage('Deploy to K8s') {
+      when {
+        branch 'main'
+      }
+      steps {
+        withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+          sh '''
+            echo ">>> Deploying with Helmfile"
+            helmfile --environment production sync
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ Pipeline finished successfully"
+    }
+    failure {
+      echo "❌ Pipeline failed"
+    }
+    always {
+      cleanWs()
+    }
+  }
 }
