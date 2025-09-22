@@ -1,0 +1,8 @@
+bases:
+  - "base/helm-default.yaml"
+  - "base/environment.yaml"
+
+helmfiles:
+  - "deploy/rancid/helmfile.yaml"
+
+missingFileHandler: Error

@@ -1,0 +1,11 @@
+environments:
+  prod-eks-e1:
+    kubeContext: arn:aws:eks:eu-west-1:666666666:cluster/prod-eks
+    values:
+      - &prod-eks-e1--eks_values
+        cluster: prod-eks
+        account: 666666666
+        region: eu-west-1
+        rancid:
+          installed: true
+          chart_version: 0.5.0

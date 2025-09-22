@@ -1,0 +1,36 @@
+serviceName: {{ .Release.Name }}
+
+containers:
+  rancid:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    envs:
+      CONFIG: /tmp/rancid
+      PGPASSFILE: /
+      LOGLEVEL: debug
+
+    extraVolumeMounts:
+      - mountPath: /tmp/rancid
+        name: rancidcreds
+    
+extraVolumes:
+  - name: rancidcreds
+    secrets:
+      secretName: rancid
+      defaultMode: 0600
+
+namespace: {{ .Release.Namespace }}
+
+replicaCount: 1
+
+serviceAccount:
+  create: True
+
+commonAnnotations:
+  eks.amazonaws.com/role-arn "arn:aws:iam::666666666:role/network-mgmt-prod-eks-eu-west-1

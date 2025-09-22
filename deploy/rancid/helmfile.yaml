@@ -1,0 +1,29 @@
+---
+bases:
+  - "../../base/helmf-default.yaml"
+  - "../../base/environment.yaml"
+
+---
+---
+
+repositories:
+  - name: localgit
+    url: https://public-modules.git.me/helm-charts/charts
+
+releases:
+  - name: rancid--{{ .Environment.Name }}
+    chart: localgit/deployment
+    version: 0.5.0
+    namespace: rancid
+    installed: true
+    labels:
+      app: rancid
+    values:
+      - values.yaml.gotmpl
+      - "{{ .Environment.Name }}/override.yaml.gotmpl"
+      - containers:
+        rancid:
+          envs:
+{{ $tag := printf "%s/image.yaml" .Environment.Name | readFile | fromYaml | get "tag" }}
+          image:
+{{ printf "%s/image.yaml" .Environment.Name | readFile | index 14}}

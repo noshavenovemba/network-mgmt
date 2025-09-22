@@ -1,0 +1,4 @@
+repository: 666666666.dkr.ecr.eu-west-1.amazonaws.com/tools/rancid
+tag: 1.1.4
+pullPolicy: IfNotPresent
+pullSecrets: []
